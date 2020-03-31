@@ -13,19 +13,18 @@ extern "C" {
 /**
  * Ice states definitions
  *
- * ICE_AGENT_STATE_NONE:                Dummy state
- * ICE_AGENT_STATE_NEW:                 State at creation
- * ICE_AGENT_STATE_GATHERING:           Gathering local candidates
- * ICE_AGENT_STATE_CHECK_CONNECTION:    Checking candidate pair connectivity
- * ICE_AGENT_STATE_CONNECTED:           At least one working candidate pair
- * ICE_AGENT_STATE_NOMINATING:          Waiting for connectivity check to succeed for the nominated cadidate pair
- * ICE_AGENT_STATE_READY:               Selected candidate pair is now final
- * ICE_AGENT_STATE_DISCONNECTED:        Lost connection after ICE_AGENT_STATE_READY
+ * ICE_AGENT_STATE_NONE:                        Dummy state
+ * ICE_AGENT_STATE_NEW:                         State at creation
+ * ICE_AGENT_STATE_WAITING_REMOTE_CREDENTIAL    Wait for information from remote peer
+ * ICE_AGENT_STATE_CHECK_CONNECTION:            Checking candidate pair connectivity
+ * ICE_AGENT_STATE_CONNECTED:                   At least one working candidate pair
+ * ICE_AGENT_STATE_NOMINATING:                  Waiting for connectivity check to succeed for the nominated cadidate pair
+ * ICE_AGENT_STATE_READY:                       Selected candidate pair is now final
+ * ICE_AGENT_STATE_DISCONNECTED:                Lost connection after ICE_AGENT_STATE_READY
  * ICE_AGENT_STATE_FAILED:
  */
 #define ICE_AGENT_STATE_NONE                            ((UINT64) 0)
 #define ICE_AGENT_STATE_NEW                             ((UINT64) (1 << 0))
-#define ICE_AGENT_STATE_GATHERING                       ((UINT64) (1 << 1))
 #define ICE_AGENT_STATE_WAITING_REMOTE_CREDENTIAL       ((UINT64) (1 << 2))
 #define ICE_AGENT_STATE_CHECK_CONNECTION                ((UINT64) (1 << 3))
 #define ICE_AGENT_STATE_CONNECTED                       ((UINT64) (1 << 4))
@@ -36,7 +35,6 @@ extern "C" {
 
 #define ICE_AGENT_STATE_NONE_STR                        (PCHAR) "ICE_AGENT_STATE_NONE"
 #define ICE_AGENT_STATE_NEW_STR                         (PCHAR) "ICE_AGENT_STATE_NEW"
-#define ICE_AGENT_STATE_GATHERING_STR                   (PCHAR) "ICE_AGENT_STATE_GATHERING"
 #define ICE_AGENT_STATE_WAITING_REMOTE_CREDENTIAL_STR	(PCHAR) "ICE_AGENT_STATE_WAITING_REMOTE_CREDENTIAL"
 #define ICE_AGENT_STATE_CHECK_CONNECTION_STR            (PCHAR) "ICE_AGENT_STATE_CHECK_CONNECTION"
 #define ICE_AGENT_STATE_CONNECTED_STR                   (PCHAR) "ICE_AGENT_STATE_CONNECTED"
@@ -56,8 +54,6 @@ PCHAR iceAgentStateToString(UINT64);
  */
 STATUS fromNewIceAgentState(UINT64, PUINT64);
 STATUS executeNewIceAgentState(UINT64, UINT64);
-STATUS fromGatheringIceAgentState(UINT64, PUINT64);
-STATUS executeGatheringIceAgentState(UINT64, UINT64);
 STATUS fromWaitingRemoteCredentialIceAgentState(UINT64, PUINT64);
 STATUS executeWaitingRemoteCredentialIceAgentState(UINT64, UINT64);
 STATUS fromCheckConnectionIceAgentState(UINT64, PUINT64);

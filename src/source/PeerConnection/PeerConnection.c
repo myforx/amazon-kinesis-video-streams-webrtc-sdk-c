@@ -269,8 +269,6 @@ VOID onIceConnectionStateChange(UINT64 customData, UINT64 connectionState)
             reportConnectionStateChange = FALSE;
             break;
 
-        case ICE_AGENT_STATE_GATHERING:
-            // explicit fall-through
         case ICE_AGENT_STATE_WAITING_REMOTE_CREDENTIAL:
             newConnectionState = RTC_PEER_CONNECTION_STATE_NEW;
             break;
@@ -500,8 +498,7 @@ STATUS createPeerConnection(PRtcConfiguration pConfiguration, PRtcPeerConnection
     iceAgentCallbacks.newLocalCandidateFn = onNewIceLocalCandidate;
     CHK_STATUS(createConnectionListener(&pConnectionListener));
     // IceAgent will own the lifecycle of pConnectionListener;
-    CHK_STATUS(createIceAgent(pKvsPeerConnection->localIceUfrag, pKvsPeerConnection->localIcePwd,
-                              iceAgentCallbacks.customData, &iceAgentCallbacks, pConfiguration,
+    CHK_STATUS(createIceAgent(pKvsPeerConnection->localIceUfrag, pKvsPeerConnection->localIcePwd, &iceAgentCallbacks, pConfiguration,
                               pKvsPeerConnection->timerQueueHandle, pConnectionListener, &pKvsPeerConnection->pIceAgent));
 
     *ppPeerConnection = (PRtcPeerConnection) pKvsPeerConnection;
@@ -541,6 +538,8 @@ STATUS freePeerConnection(PRtcPeerConnection *ppPeerConnection)
     pKvsPeerConnection = (PKvsPeerConnection) *ppPeerConnection;
 
     CHK(pKvsPeerConnection != NULL, retStatus);
+
+    CHK_STATUS(iceAgentShutdown(pKvsPeerConnection->pIceAgent));
 
     // free timer queue first to remove liveness provided by timer
     if (IS_VALID_TIMER_QUEUE_HANDLE(pKvsPeerConnection->timerQueueHandle)) {
