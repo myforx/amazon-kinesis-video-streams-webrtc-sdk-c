@@ -846,9 +846,7 @@ STATUS turnConnectionStepState(PTurnConnection pTurnConnection)
 {
     ENTERS();
     STATUS retStatus = STATUS_SUCCESS;
-    KvsIpAddress localhostIps[10];
-    UINT32 localhostIpsLen = ARRAY_SIZE(localhostIps), i, readyPeerCount = 0, totalPeerCount = 0, channelWithPermissionCount = 0;
-    BOOL hostAddrFound = FALSE;
+    UINT32 readyPeerCount = 0, totalPeerCount = 0, channelWithPermissionCount = 0;
     UINT64 currentTime = GETTIME();
     PDoubleListNode pCurNode = NULL;
     UINT64 data;
@@ -1126,8 +1124,8 @@ STATUS turnConnectionShutdown(PTurnConnection pTurnConnection, UINT64 waitUntilA
 {
     STATUS retStatus = STATUS_SUCCESS;
     UINT64 currentTime = 0, timeoutTime = 0;
-    CHK(pTurnConnection != NULL, STATUS_NULL_ARG);
     BOOL locked = FALSE;
+    CHK(pTurnConnection != NULL, STATUS_NULL_ARG);
 
     ATOMIC_STORE(&pTurnConnection->stopTurnConnection, TRUE);
 

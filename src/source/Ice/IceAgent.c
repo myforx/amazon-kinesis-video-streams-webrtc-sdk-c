@@ -438,6 +438,9 @@ STATUS iceAgentStartAgent(PIceAgent pIceAgent, PCHAR remoteUsername, PCHAR remot
     }
     SNPRINTF(pIceAgent->combinedUserName, ARRAY_SIZE(pIceAgent->combinedUserName), "%s:%s", pIceAgent->remoteUsername, pIceAgent->localUsername);
 
+    MUTEX_UNLOCK(pIceAgent->lock);
+    locked = FALSE;
+
     CHK_STATUS(timerQueueAddTimer(pIceAgent->timerQueueHandle,
                                   0,
                                   pIceAgent->kvsRtcConfiguration.iceConnectionCheckPollingInterval,
@@ -1156,6 +1159,7 @@ CleanUp:
 
 STATUS iceAgentFreeTurnConnectionTimerCallback(UINT32 timerId, UINT64 currentTime, UINT64 customData)
 {
+    UNUSED_PARAM(timerId);
     STATUS retStatus = STATUS_SUCCESS;
     PTurnConnectionTracker pTurnConnectionTracker = (PTurnConnectionTracker) customData;
 

@@ -54,6 +54,7 @@ namespace com { namespace amazonaws { namespace kinesis { namespace video { name
 
             auto onDataHandler = [](UINT64 customData, PSocketConnection pSocketConnection, PBYTE pBuffer,
                                     UINT32 bufferLen, PKvsIpAddress pSrc, PKvsIpAddress pDest) -> STATUS {
+                UNUSED_PARAM(pSocketConnection);
                 TurnConnectionFunctionalityTest *pTestBase = (TurnConnectionFunctionalityTest*) customData;
                 pTestBase->turnChannelDataCount = ARRAY_SIZE(pTestBase->turnChannelData);
                 EXPECT_EQ(STATUS_SUCCESS, turnConnectionIncomingDataHandler(pTestBase->pTurnConnection,
