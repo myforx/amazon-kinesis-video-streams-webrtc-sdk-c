@@ -37,7 +37,7 @@ matrix:
         - mkdir build && cd build && cmake .. -DBUILD_TEST=TRUE
       script:
         - make
-        - ./tst/webrtc_client_test
+        - ./tst/webrtc_client_test --gtest_filter="-SignalingApiFunctionalityTest.*"
       after_failure: skip # timeout not available on MacOS
 
     - name: "OSX Clang"
