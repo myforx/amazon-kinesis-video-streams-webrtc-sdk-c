@@ -89,13 +89,14 @@ STATUS freeTurnConnection(PTurnConnection* ppTurnConnection)
 
     pTurnConnection = *ppTurnConnection;
 
+    MUTEX_LOCK(pTurnConnection->lock);
     if (pTurnConnection->timerCallbackId != UINT32_MAX) {
-        CHK_STATUS(timerQueueCancelTimer(pTurnConnection->timerQueueHandle, pTurnConnection->timerCallbackId, (UINT64) pTurnConnection));
+        CHK_LOG_ERR_NV(timerQueueCancelTimer(pTurnConnection->timerQueueHandle, pTurnConnection->timerCallbackId, (UINT64) pTurnConnection));
     }
+    MUTEX_UNLOCK(pTurnConnection->lock);
 
-    // tear down control channel
-    CHK_STATUS(connectionListenerRemoveConnection(pTurnConnection->pConnectionListener, pTurnConnection->pControlChannel));
-    CHK_STATUS(freeSocketConnection(&pTurnConnection->pControlChannel));
+    // shutdown control channel
+    CHK_LOG_ERR_NV(connectionListenerRemoveConnection(pTurnConnection->pConnectionListener, pTurnConnection->pControlChannel));
 
     // free transactionId store for each turn peer
     CHK_STATUS(doubleListGetHeadNode(pTurnConnection->turnPeerList, &pCurNode));
@@ -107,7 +108,7 @@ STATUS freeTurnConnection(PTurnConnection* ppTurnConnection)
         freeTransactionIdStore(&pTurnPeer->pTransactionIdStore);
     }
     // free turn peers
-    CHK_STATUS(doubleListClear(pTurnConnection->turnPeerList, TRUE));
+    CHK_LOG_ERR_NV(doubleListClear(pTurnConnection->turnPeerList, TRUE));
     CHK_LOG_ERR_NV(doubleListFree(pTurnConnection->turnPeerList));
 
     if (IS_VALID_MUTEX_VALUE(pTurnConnection->lock)) {
@@ -137,14 +138,15 @@ CleanUp:
 }
 
 STATUS turnConnectionIncomingDataHandler(PTurnConnection pTurnConnection, PBYTE pBuffer, UINT32 bufferLen,
-                                         PKvsIpAddress pSrc, PKvsIpAddress pDest, PTurnChannelData channelDataList, PUINT32 pChannelDataCount)
+                                         PKvsIpAddress pSrc, PKvsIpAddress pDest, PTurnChannelData channelDataList,
+                                         PUINT32 pChannelDataCount)
 {
     ENTERS();
     UNUSED_PARAM(pSrc);
     UNUSED_PARAM(pDest);
     STATUS retStatus = STATUS_SUCCESS;
 
-    CHK(pTurnConnection != NULL, STATUS_NULL_ARG);
+    CHK(pTurnConnection != NULL && channelDataList != NULL && pChannelDataCount != NULL, STATUS_NULL_ARG);
     CHK_WARN(bufferLen > 0 && pBuffer != NULL, retStatus, "Got empty buffer");
 
     if (IS_STUN_PACKET(pBuffer)) {
@@ -169,6 +171,7 @@ CleanUp:
 
 STATUS turnConnectionHandleStun(PTurnConnection pTurnConnection, PBYTE pBuffer, UINT32 bufferLen)
 {
+    ENTERS();
     STATUS retStatus = STATUS_SUCCESS;
     UINT16 stunPacketType = 0;
     PStunAttributeHeader pStunAttr = NULL;
@@ -320,12 +323,14 @@ CleanUp:
         freeStunPacket(&pStunPacket);
     }
 
+    LEAVES();
     return retStatus;
 }
 
 
 STATUS turnConnectionHandleStunError(PTurnConnection pTurnConnection, PBYTE pBuffer, UINT32 bufferLen)
 {
+    ENTERS();
     STATUS retStatus = STATUS_SUCCESS;
     UINT16 stunPacketType = 0;
     PStunAttributeHeader pStunAttr = NULL;
@@ -402,12 +407,14 @@ CleanUp:
         freeStunPacket(&pStunPacket);
     }
 
+    LEAVES();
     return retStatus;
 }
 
 STATUS turnConnectionHandleChannelData(PTurnConnection pTurnConnection, PBYTE pBuffer, UINT32 bufferLen,
                                        PTurnChannelData channelDataList, PUINT32 pChannelDataCount)
 {
+    ENTERS();
     STATUS retStatus = STATUS_SUCCESS;
     BOOL locked = FALSE;
 
@@ -452,12 +459,14 @@ CleanUp:
         MUTEX_UNLOCK(pTurnConnection->lock);
     }
 
+    LEAVES();
     return retStatus;
 }
 
 STATUS turnConnectionHandleChannelDataTcpMode(PTurnConnection pTurnConnection, PBYTE pBuffer, UINT32 bufferLen,
                                               PTurnChannelData pTurnChannelData, PUINT32 pTurnChannelDataCount)
 {
+    ENTERS();
     STATUS retStatus = STATUS_SUCCESS;
     UINT32 bytesToCopy = 0, remainingMsgSize = 0, paddedChannelDataLen = 0, remainingBufLen = 0, channelDataCount = 0;
     PBYTE pCurPos = NULL;
@@ -554,6 +563,7 @@ CleanUp:
 
     CHK_LOG_ERR_NV(retStatus);
 
+    LEAVES();
     return retStatus;
 }
 
@@ -727,7 +737,7 @@ STATUS turnConnectionStart(PTurnConnection pTurnConnection)
     }
 
     // schedule the timer, which will drive the state machine.
-    CHK_STATUS(timerQueueAddTimer(pTurnConnection->timerQueueHandle, 0, pTurnConnection->currentTimerCallingPeriod,
+    CHK_STATUS(timerQueueAddTimer(pTurnConnection->timerQueueHandle, KVS_ICE_DEFAULT_TIMER_START_DELAY, pTurnConnection->currentTimerCallingPeriod,
                                   turnConnectionTimerCallback, (UINT64) pTurnConnection, &pTurnConnection->timerCallbackId));
 
 CleanUp:
@@ -880,6 +890,8 @@ STATUS turnConnectionStepState(PTurnConnection pTurnConnection)
                     pTurnConnection->pControlChannel->pSsl == NULL) {
                     CHK_STATUS(socketConnectionInitSecureConnection(pTurnConnection->pControlChannel, FALSE));
                 }
+
+                ATOMIC_STORE_BOOL(&pTurnConnection->pControlChannel->receiveData, TRUE);
 
                 pTurnConnection->state = TURN_STATE_GET_CREDENTIALS;
                 pTurnConnection->stateTimeoutTime = currentTime + DEFAULT_TURN_GET_CREDENTIAL_TIMEOUT;
@@ -1139,7 +1151,10 @@ STATUS turnConnectionShutdown(PTurnConnection pTurnConnection, UINT64 waitUntilA
             pTurnConnection->timerCallbackId = UINT32_MAX;
         }
 
-    } else if (waitUntilAllocationFreedTimeout > 0) {
+        CHK(FALSE, retStatus);
+    }
+
+    if (waitUntilAllocationFreedTimeout > 0) {
         currentTime = GETTIME();
         timeoutTime = currentTime + waitUntilAllocationFreedTimeout;
 
@@ -1186,7 +1201,7 @@ STATUS turnConnectionTimerCallback(UINT32 timerId, UINT64 currentTime, UINT64 cu
     UNUSED_PARAM(currentTime);
     STATUS retStatus = STATUS_SUCCESS;
     PTurnConnection pTurnConnection = (PTurnConnection) customData;
-    BOOL locked = FALSE;
+    BOOL locked = FALSE, stopScheduling = FALSE;
     PDoubleListNode pCurNode = NULL;
     UINT64 data;
     PTurnPeer pTurnPeer = NULL;
@@ -1279,6 +1294,10 @@ STATUS turnConnectionTimerCallback(UINT32 timerId, UINT64 currentTime, UINT64 cu
 
             break;
 
+        case TURN_STATE_FAILED:
+            stopScheduling = TRUE;
+            break;
+
         default:
             break;
 
@@ -1293,6 +1312,10 @@ CleanUp:
 
     if (locked) {
         MUTEX_UNLOCK(pTurnConnection->lock);
+    }
+
+    if (stopScheduling) {
+        retStatus = STATUS_TIMER_QUEUE_STOP_SCHEDULING;
     }
 
     return retStatus;

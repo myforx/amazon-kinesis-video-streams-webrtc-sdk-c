@@ -141,7 +141,6 @@ namespace com { namespace amazonaws { namespace kinesis { namespace video { name
         UINT32 connectionCount = 0, newConnectionCount = 0;
         PSocketConnection pSocketConnection = NULL;
         KvsIpAddress localhost;
-        PDoubleListNode pCurNode;
 
         MEMSET(&routine1CustomData, 0x0, SIZEOF(ConnectionListenerTestCustomData));
         MEMSET(&routine2CustomData, 0x0, SIZEOF(ConnectionListenerTestCustomData));
@@ -181,8 +180,7 @@ namespace com { namespace amazonaws { namespace kinesis { namespace video { name
 
         EXPECT_EQ(STATUS_SUCCESS, connectionListenerRemoveConnection(pConnectionListener, pSocketConnection));
         EXPECT_EQ(STATUS_SUCCESS, doubleListGetNodeCount(pConnectionListener->connectionList, &newConnectionCount));
-        EXPECT_EQ(connectionCount, newConnectionCount);
-        EXPECT_EQ(STATUS_SUCCESS, freeSocketConnection(&pSocketConnection));
+        EXPECT_EQ(connectionCount + 1, newConnectionCount);
 
         EXPECT_EQ(TRUE, IS_VALID_TID_VALUE(pConnectionListener->receiveDataRoutine));
         ATOMIC_STORE_BOOL(&pConnectionListener->terminate, TRUE);
@@ -190,13 +188,6 @@ namespace com { namespace amazonaws { namespace kinesis { namespace video { name
         THREAD_SLEEP((SOCKET_WAIT_FOR_DATA_TIMEOUT_SECONDS + 1) * HUNDREDS_OF_NANOS_IN_A_SECOND);
 
         EXPECT_EQ(FALSE, ATOMIC_LOAD_BOOL(&pConnectionListener->listenerRoutineStarted));
-
-        EXPECT_EQ(STATUS_SUCCESS, doubleListGetHeadNode(pConnectionListener->connectionList, &pCurNode));
-        while(pCurNode != NULL) {
-            pSocketConnection = (PSocketConnection) pCurNode->data;
-            EXPECT_EQ(STATUS_SUCCESS, freeSocketConnection(&pSocketConnection));
-            pCurNode = pCurNode->pNext;
-        }
 
         EXPECT_EQ(STATUS_SUCCESS, freeConnectionListener(&pConnectionListener));
     }
@@ -543,15 +534,20 @@ namespace com { namespace amazonaws { namespace kinesis { namespace video { name
 
     TEST_F(IceFunctionalityTest, IceAgentCandidateGatheringTest)
     {
+        typedef struct {
+            std::vector<std::string> list;
+            std::mutex lock;
+        } CandidateList;
+
         PIceAgent pIceAgent = NULL;
         CHAR localIceUfrag[LOCAL_ICE_UFRAG_LEN + 1];
         CHAR localIcePwd[LOCAL_ICE_PWD_LEN + 1];
         RtcConfiguration configuration;
         IceAgentCallbacks iceAgentCallbacks;
-        std::vector<std::string> candidateList;
         PConnectionListener pConnectionListener = NULL;
         TIMER_QUEUE_HANDLE timerQueueHandle = INVALID_TIMER_QUEUE_HANDLE_VALUE;
         BOOL foundHostCandidate = FALSE, foundSrflxCandidate = FALSE, foundRelayCandidate = FALSE;
+        CandidateList candidateList;
 
         MEMSET(&configuration, 0x00, SIZEOF(RtcConfiguration));
         MEMSET(localIceUfrag, 0x00, SIZEOF(localIceUfrag));
@@ -562,12 +558,14 @@ namespace com { namespace amazonaws { namespace kinesis { namespace video { name
         getIceServers(&configuration);
 
         auto onICECandidateHdlr = [](UINT64 customData, PCHAR candidateStr) -> void {
-            std::vector<std::string> *pCandidateList = (std::vector<std::string>*) customData;
+            CandidateList *candidateList1 = (CandidateList*) customData;
+            candidateList1->lock.lock();
             if (candidateStr != NULL) {
-                pCandidateList->push_back(std::string(candidateStr));
+                candidateList1->list.push_back(std::string(candidateStr));
             } else {
-                pCandidateList->push_back("");
+                candidateList1->list.push_back("");
             }
+            candidateList1->lock.unlock();
         };
 
         iceAgentCallbacks.customData = (UINT64) &candidateList;
@@ -585,9 +583,10 @@ namespace com { namespace amazonaws { namespace kinesis { namespace video { name
         THREAD_SLEEP(KVS_ICE_GATHER_REFLEXIVE_AND_RELAYED_CANDIDATE_TIMEOUT + 2 * HUNDREDS_OF_NANOS_IN_A_SECOND);
 
         // newLocalCandidateFn should've returned null in its last invocation, which was converted to empty string
-        EXPECT_TRUE(candidateList[candidateList.size() - 1].empty());
+        candidateList.lock.lock();
+        EXPECT_TRUE(candidateList.list[candidateList.list.size() - 1].empty());
 
-        for (std::vector<std::string>::iterator it = candidateList.begin() ; it != candidateList.end(); ++it) {
+        for (std::vector<std::string>::iterator it = candidateList.list.begin() ; it != candidateList.list.end(); ++it) {
             std::string candidateStr = *it;
             if (candidateStr.find(std::string(SDP_CANDIDATE_TYPE_HOST)) != std::string::npos) {
                 foundHostCandidate = TRUE;
@@ -597,12 +596,15 @@ namespace com { namespace amazonaws { namespace kinesis { namespace video { name
                 foundRelayCandidate = TRUE;
             }
         }
+        candidateList.lock.unlock();
 
         EXPECT_TRUE(foundHostCandidate && foundSrflxCandidate && foundRelayCandidate);
         EXPECT_EQ(STATUS_SUCCESS, iceAgentShutdown(pIceAgent));
         EXPECT_EQ(STATUS_SUCCESS, timerQueueShutdown(timerQueueHandle));
         EXPECT_EQ(STATUS_SUCCESS, freeIceAgent(&pIceAgent));
         EXPECT_EQ(STATUS_SUCCESS, timerQueueFree(&timerQueueHandle));
+
+        deinitializeSignalingClient();
     }
 }
 }

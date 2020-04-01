@@ -21,7 +21,7 @@ extern "C" {
  * ICE_AGENT_STATE_NOMINATING:                  Waiting for connectivity check to succeed for the nominated cadidate pair
  * ICE_AGENT_STATE_READY:                       Selected candidate pair is now final
  * ICE_AGENT_STATE_DISCONNECTED:                Lost connection after ICE_AGENT_STATE_READY
- * ICE_AGENT_STATE_FAILED:
+ * ICE_AGENT_STATE_FAILED:                      Terminal state with an error stored in iceAgentStatus
  */
 #define ICE_AGENT_STATE_NONE                            ((UINT64) 0)
 #define ICE_AGENT_STATE_NEW                             ((UINT64) (1 << 0))

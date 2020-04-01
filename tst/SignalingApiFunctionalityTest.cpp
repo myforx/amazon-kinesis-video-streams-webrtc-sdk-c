@@ -411,7 +411,7 @@ TEST_F(SignalingApiFunctionalityTest, mockViewer)
     EXPECT_FALSE(IS_VALID_SIGNALING_CLIENT_HANDLE(signalingHandle));
 }
 
-TEST_F(SignalingApiFunctionalityTest, DISABLED_invalidChannelInfoInput)
+TEST_F(SignalingApiFunctionalityTest, invalidChannelInfoInput)
 {
     ChannelInfo channelInfo;
     SignalingClientCallbacks signalingClientCallbacks;

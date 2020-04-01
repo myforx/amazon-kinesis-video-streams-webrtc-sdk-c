@@ -539,7 +539,7 @@ STATUS freePeerConnection(PRtcPeerConnection *ppPeerConnection)
 
     CHK(pKvsPeerConnection != NULL, retStatus);
 
-    CHK_STATUS(iceAgentShutdown(pKvsPeerConnection->pIceAgent));
+    CHK_LOG_ERR_NV(iceAgentShutdown(pKvsPeerConnection->pIceAgent));
 
     // free timer queue first to remove liveness provided by timer
     if (IS_VALID_TIMER_QUEUE_HANDLE(pKvsPeerConnection->timerQueueHandle)) {

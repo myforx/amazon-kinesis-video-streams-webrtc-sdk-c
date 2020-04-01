@@ -21,7 +21,6 @@ namespace com { namespace amazonaws { namespace kinesis { namespace video { name
             UINT32 localIpInterfaceCount = ARRAY_SIZE(localIpInterfaces);
             PKvsIpAddress pTurnSocketAddr = NULL;
             PSocketConnection pTurnSocket = NULL;
-            CHAR ipAddrStr[KVS_IP_ADDRESS_STRING_BUFFER_LEN];
 
             initializeSignalingClient();
             EXPECT_EQ(STATUS_SUCCESS, signalingClientGetIceConfigInfoCount(mSignalingClientHandle, &iceConfigCount));
@@ -64,24 +63,21 @@ namespace com { namespace amazonaws { namespace kinesis { namespace video { name
 
                 return STATUS_SUCCESS;
             };
-            getIpAddrStr(&pTurnServer->ipAddress, ipAddrStr, ARRAY_SIZE(ipAddrStr));
             EXPECT_EQ(STATUS_SUCCESS, createSocketConnection(pTurnSocketAddr, &pTurnServer->ipAddress,
                                                              KVS_ICE_DEFAULT_TURN_PROTOCOL, (UINT64) this, onDataHandler,
                                                              0, &pTurnSocket));
             EXPECT_EQ(STATUS_SUCCESS, connectionListenerAddConnection(pConnectionListener, pTurnSocket));
-            EXPECT_EQ(STATUS_SUCCESS, connectionListenerStart(pConnectionListener));
-
             ASSERT_EQ(STATUS_SUCCESS, createTurnConnection(pTurnServer, timerQueueHandle,
                                                            TURN_CONNECTION_DATA_TRANSFER_MODE_DATA_CHANNEL,
                                                            KVS_ICE_DEFAULT_TURN_PROTOCOL, NULL, pTurnSocket, pConnectionListener,
                                                            &pTurnConnection));
+            EXPECT_EQ(STATUS_SUCCESS, connectionListenerStart(pConnectionListener));
         }
 
-        VOID freeTestTurnConnection(PTurnConnection *ppTurnConnection)
+        VOID freeTestTurnConnection()
         {
-            EXPECT_TRUE(ppTurnConnection != NULL);
-
-            EXPECT_EQ(STATUS_SUCCESS, freeTurnConnection(ppTurnConnection));
+            EXPECT_TRUE(pTurnConnection != NULL);
+            EXPECT_EQ(STATUS_SUCCESS, freeTurnConnection(&pTurnConnection));
             EXPECT_EQ(STATUS_SUCCESS, freeConnectionListener(&pConnectionListener));
             timerQueueFree(&timerQueueHandle);
             deinitializeSignalingClient();
@@ -101,14 +97,14 @@ namespace com { namespace amazonaws { namespace kinesis { namespace video { name
 
         EXPECT_EQ(STATUS_SUCCESS, turnConnectionStart(pTurnConnection));
 
-        getRelayAddrTimeout = GETTIME() + 5 * HUNDREDS_OF_NANOS_IN_A_SECOND;
+        getRelayAddrTimeout = GETTIME() + 3 * HUNDREDS_OF_NANOS_IN_A_SECOND;
         while((pRelayAddress = turnConnectionGetRelayAddress(pTurnConnection)) == NULL && GETTIME() < getRelayAddrTimeout) {
             THREAD_SLEEP(HUNDREDS_OF_NANOS_IN_A_SECOND);
         }
 
         EXPECT_TRUE(pRelayAddress != NULL);
 
-        freeTestTurnConnection(&pTurnConnection);
+        freeTestTurnConnection();
     }
 
     /*
@@ -193,7 +189,7 @@ namespace com { namespace amazonaws { namespace kinesis { namespace video { name
         EXPECT_GE(pTurnConnection->allocationExpirationTime, GETTIME());
         MUTEX_UNLOCK(pTurnConnection->lock);
 
-        freeTestTurnConnection(&pTurnConnection);
+        freeTestTurnConnection();
     }
 
     TEST_F(TurnConnectionFunctionalityTest, turnConnectionShutdownCompleteBeforeTimeout)
@@ -236,7 +232,7 @@ namespace com { namespace amazonaws { namespace kinesis { namespace video { name
         EXPECT_TRUE(ATOMIC_LOAD_BOOL(&pTurnConnection->allocationFreed));
         MUTEX_UNLOCK(pTurnConnection->lock);
 
-        freeTestTurnConnection(&pTurnConnection);
+        freeTestTurnConnection();
     }
 
     TEST_F(TurnConnectionFunctionalityTest, turnConnectionShutdownAsync)
@@ -284,7 +280,7 @@ namespace com { namespace amazonaws { namespace kinesis { namespace video { name
 
         EXPECT_TRUE(turnConnectionIsShutdownComplete(pTurnConnection));
 
-        freeTestTurnConnection(&pTurnConnection);
+        freeTestTurnConnection();
     }
 
     TEST_F(TurnConnectionFunctionalityTest, turnConnectionReceivePartialChannelMessageTest)
@@ -393,7 +389,7 @@ namespace com { namespace amazonaws { namespace kinesis { namespace video { name
         EXPECT_EQ(0, MEMCMP(turnChannelData[0].data, channelData2 + TURN_DATA_CHANNEL_SEND_OVERHEAD, turnChannelData[0].size));
         EXPECT_EQ(0, MEMCMP(turnChannelData[1].data, channelData3 + TURN_DATA_CHANNEL_SEND_OVERHEAD, turnChannelData[1].size));
 
-        freeTestTurnConnection(&pTurnConnection);
+        freeTestTurnConnection();
     }
 
     TEST_F(TurnConnectionFunctionalityTest, turnConnectionCallMultipleTurnSendDataInThreads)
@@ -454,7 +450,7 @@ namespace com { namespace amazonaws { namespace kinesis { namespace video { name
         EXPECT_GE(pTurnConnection->allocationExpirationTime, GETTIME());
         MUTEX_UNLOCK(pTurnConnection->lock);
 
-        freeTestTurnConnection(&pTurnConnection);
+        freeTestTurnConnection();
     }
 
 }
